@@ -1,5 +1,7 @@
 This contains some utilities to estimate bias based on Amara 2011 et al.
 
+INSTALL - python setup.py install --prefix=/home/vinu/software/python_libs_vinu/
+
 
 kappa_amara.py - a class which returns 1. kappa map from input shear or true value from the simulation 2. gamma field from galaxy kappa map or the input simulated shear  
 

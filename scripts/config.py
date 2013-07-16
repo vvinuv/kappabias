@@ -11,8 +11,13 @@ zmax_s = 1.0 #source max z
 zmin_g = 0.2 #lens min z
 zmax_g = 0.9 #lens max z
 
+#MICE input file
 shearfile = '../data/Mice_0_12_0_12_tmp.fits'
 galaxyfile = '../data/Mice_0_12_0_12_tmp.fits'
+
+#BCC input files
+#shearfile = '../Aardvark_v1_0_truth_7_12_-10_-15_g_e.fits'
+#galaxyfile = '../Aardvark_v1_0_truth_7_12_-10_-15_g_e.fits'
 
 e_sign = [1, -1] #Multiplied by this to the shear
 

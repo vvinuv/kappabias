@@ -39,11 +39,11 @@ if __name__=='__main__':
     colorbar()
     subplot(143)
     imshow(k.kappa_pred[c.ig:-c.ig,c.ig:-c.ig], origin='lower')#, vmin=-0.01, vmax=0.03)
-    title(r'$\kappa_g$:2D smoothing (%2.1f arcmin)'%smooth)
+    title(r'$\kappa_g$:2D smoothing (%2.1f arcmin)'%c.smooth)
     colorbar()
     subplot(144)
     imshow(k.kappa_pred_sm[c.ig:-c.ig,c.ig:-c.ig], origin='lower')#, vmin=-0.01, vmax=0.03)
-    title(r'$\kappa_g$:3D smoothing (%2.1f arcmin)'%smooth)
+    title(r'$\kappa_g$:3D smoothing (%2.1f arcmin)'%c.smooth)
     colorbar()
 
 
