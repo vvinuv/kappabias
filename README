@@ -1,8 +1,47 @@
 This contains some utilities to estimate bias based on Amara 2011 et al.
 
-INSTALL - python setup.py install --prefix=/home/vinu/software/python_libs_vinu/
+INSTALL
+--------
+python setup.py install --prefix=/home/vinu/software/python_libs_vinu/
+
+USAGE
+-----------------
+This can be run two ways. 1. from python interpreter 2. using script
+
+Lets say we have a fits file (Mice.fits) contains the following columns  
+RA, DEC, 'Z', KAPPA, GAMMA1, GAMMA2, then the program should be run as follows. 
+
+1. In python interpreter
+-------------------------
+
+>>> from numpy import nan_to_num
+>>> import bias.kappa_amara as kk
+>>> k = kk.KappaAmara('.', 'Mice.fits', 'Mice.fits', '.', 4., zs=1., zmin_s=0.5, zmax_s=1.0, zmin_g=0.2, zmax_g=0.9)
+>>> k.true_values(g_to_k=False, e_sign = [1,-1], col_names=['RA', 'DEC', 'Z', 'GAMMA1', 'GAMMA2', '', '', ''])
+>>> k.kappa_predicted()
+>>> k.gamma_predicted()
+>>> kk.linear_bias_kappa(k.kappa_true[10:-10,10:-10], k.kappa_pred[10:-10,10:-10])
+>>> mask = k.mask[10:-10,10:-10]
+
+>>> g1p = k.gamma_p[10:-10,10:-10].real
+>>> g2p = k.gamma_p[10:-10,10:-10].imag
+>>> g1t = k.gamma1_true[10:-10,10:-10]
+>>> g2t = -k.gamma2_true[10:-10,10:-10]
+>>> m = mask.ravel().astype(bool)
+>>> g1t = nan_to_num(g1t).ravel()[m]
+>>> g2t = nan_to_num(g2t).ravel()[m]
+>>> g1p = nan_to_num(g1p).ravel()[m]
+>>> g2p = nan_to_num(g2p).ravel()[m]
+>>> b = kk.BiasModeling(g1t, g2t, g1p, g2p, bias_model='linear', do_plot=False, sigma=5, bin_no=50, boot_real=20)
+
+2. Using script
+-----------------
+
+You will find run_mice_bcc.py in scripts/ directory, which does the same thing. All the parameter values should be set in scripts/config.py. Descriptions of these parameters are also included as comments
 
 
+The details of the package are below
+------------------------------------
 kappa_amara.py - a class which returns 1. kappa map from input shear or true value from the simulation 2. gamma field from galaxy kappa map or the input simulated shear  
 
 It has the following input parameters 
