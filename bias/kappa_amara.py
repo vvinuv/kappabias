@@ -314,14 +314,14 @@ class KappaAmara:
 
 class BiasModeling:
 
-    def __init__(self, g1t, g2t, g1p, g2p, bias_model='linear', bin_no=30, do_plot=False, sigma=1e10, boot_realiz=100, boot_sample=None):
+    def __init__(self, g1t, g2t, g1p, g2p, bias_model='linear', bin_no=30, do_plot=False, sigma=1e10, boot_real=100, boot_sample=None):
         self.initialize(g1t, g2t, g1p, g2p, bin_no, sigma, do_plot)
 
         self.binning(valid=None)
 
         if bias_model == 'linear':
             self.linear_bias()
-            self.linear_bias_boot(boot_realiz=boot_realiz, 
+            self.linear_bias_boot(boot_real=boot_real, 
                                   boot_sample=boot_sample)
             self.linear_bias_error()
         elif bias_model == 'linear_evolve':
@@ -425,13 +425,13 @@ class BiasModeling:
 
         return 1/bias1, 1/bias2, 1/bias
 
-    def linear_bias_boot(self, boot_realiz=20, boot_sample=None):
+    def linear_bias_boot(self, boot_real=20, boot_sample=None):
         """Bias error using bootstrap"""
         if boot_sample is None:
             boot_sample = self.g1t.shape[0]
 
         b1_arr, b2_arr, b_arr = [], [], []
-        for i in range(boot_realiz):
+        for i in range(boot_real):
             print 'Boot sample > %d'%i
             boot_samples = np.floor(np.random.uniform(0,
                                                       self.g1t.shape[0],
@@ -447,8 +447,8 @@ class BiasModeling:
         b2_arr.sort()
         b_arr.sort()
 
-        larg = np.floor(0.16*boot_realiz - 1).astype(int)
-        harg = np.floor(0.84*boot_realiz - 1).astype(int)
+        larg = np.floor(0.16*boot_real - 1).astype(int)
+        harg = np.floor(0.84*boot_real - 1).astype(int)
 
         b1_med = np.median(b1_arr)
         b1_l, b1_h =  b1_med - b1_arr[larg], b1_arr[harg] - b1_med
