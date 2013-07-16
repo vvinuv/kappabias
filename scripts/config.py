@@ -2,8 +2,8 @@
 
 smooth = 4.5 #arcmin
 
-bin = 200 #no of bins
-zbin = 20 #no of z bins
+bins = 200 #no of bins
+zbins = 20 #no of z bins
 
 zs = 1.0 #source redshift
 zmin_s = 0.5 #source min z
