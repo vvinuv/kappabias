@@ -1,0 +1,34 @@
+This contains some utilities to estimate bias based on Amara 2011 et al.
+
+
+kappa_amara.py - a class which returns 1. kappa map from input shear or true value from the simulation 2. gamma field from galaxy kappa map or the input simulated shear  
+
+It has the following input parameters 
+ipath - path to input files
+shearfile - input shear catalog which has the following input columns 'RA', 'DEC', 'z', 'E1', 'E2' 
+galaxyfile - input galaxy catalog which has the columns 'RA', 'DEC', z
+opath - output path
+smooth - smoothing scale in arcmin
+zs - Source redshift
+zmin_s, zmax_s - Minimum and maximum redshift of the galaxies to be included in the shear estimate
+zmin_g, zmax_g - Minimum and maximum redshift of the galaxies to estimate galaxy density fluctuation
+
+It also has the following member functions with input parameters
+
+delta_rho_3d(bin_ra, bin_dec, bin_z)
+bin_ra, bin_dec, bin_z are the number of bins in ra, dec and z directions, if it is just a number. If it those array then it will be treated as bins 
+
+true_values(g_to_k=False, e_sign = [-1, -1], col_names=['RA', 'DEC', 'z', 'E1', 'E2', 'W', 'SN', 'Re'])
+
+g_to_k = True means that the true kappa will be estimated from  gamma
+e_sign - the sign to multiply gamma1 and gamma2
+col_names = column names in the input shear file. 
+
+ 
+kappa_utils.py - This has some utility functions for kappa_amara.py
+
+A script to estimate the bias as a function of scale is attached which uses these tools. It will be easier to understand how to use the class. Please mail me if you find some problems (vvinuv@gmail.com)
+
+ 
+
+
