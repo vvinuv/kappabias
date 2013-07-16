@@ -3,13 +3,13 @@
 from distutils.core import setup
 
 setup(
-    name="bias",
+    name="kappabias",
     version="0.1-dev",
     description="Estimating bias from observed shear and galaxy distribution",
     maintainer="Vinu Vikraman",
     maintainer_email="vvinuv@gmail.com",
     license="",
-    url='http://github.com/',
+    url='https://github.com/vvinuv/kappabias',
     packages=['bias',],
     classifiers=[
         'Intended Audience :: Dark Energy Survey',
