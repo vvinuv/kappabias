@@ -5,7 +5,7 @@ import numpy as np
 import math
 import numpy.ma as ma
 import minuit
-from astropy.stats.funcs import sigma_clip
+from astropy.stats import sigma_clip
 
 def linearlsq(x, y):
     """Return slope m and constant c"""
@@ -258,7 +258,6 @@ def AvgQ(x, y, bin, bintype=1, hardlimit=0, binmax=None, sigma=1e10):
         elif len(kk) == 0:
             return (BR[ii-1] + BR[ii])/2.
 
-
     x = array(x)
     y = array(y)
     BinNo, BinsReturned = ReturnBins(x, bin, bintype=bintype, hardlimit=hardlimit, binmax=binmax) 
@@ -267,7 +266,14 @@ def AvgQ(x, y, bin, bintype=1, hardlimit=0, binmax=None, sigma=1e10):
     BinSize = len(BinsReturned)
     xavg = [HelpMe(x[BinNo == i], BinsReturned, i) for i in range(1, BinSize)]
     xstd = [np.std(x[BinNo == i]) for i in range(1, BinSize)]
-    yavg = [np.average(sigma_clip(y[BinNo == i], sigma, 10)[0]) for i in range(1, BinSize)]
+    yavg = []
+    for i in range(1, BinSize):
+        ysub = y[BinNo == i]
+        if len(ysub) > 0:
+            yavg.append(sigma_clip(ysub, sigma, 10).mean()) 
+        else:
+            yavg.append(0.)
+    #yavg = [sigma_clip(y[BinNo == i], sigma, 10).mean() for i in range(1, BinSize)]
     #yavg = [np.average(y[BinNo == i]) for i in range(1, BinSize)]
     ystd = [np.std(y[BinNo == i]) for i in range(1, BinSize)]
     N = [y[BinNo == i].shape[0] for i in range(1, BinSize)] 

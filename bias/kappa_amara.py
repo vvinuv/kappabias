@@ -9,7 +9,7 @@ import MyFunc as MyF
 from convolution_mask import convolve_mask_fft, Gaussian
 import kappa_utils as ku
 import minuit
-from astropy.stats.funcs import sigma_clip
+from astropy.stats import sigma_clip
 
 #from mayavi import mlab
 
@@ -498,9 +498,10 @@ class BiasModeling:
 def linear_bias_kappa(kt, kp):
     kt = kt.ravel()
     kp = kp.ravel()
-    kt, con = sigma_clip(kt, 8, 10)
-    #kt = kt[con]
-    kp = kp[con]
+    kt = sigma_clip(kt, 8, 10)
+    kp = kp[~kt.mask]
+    kt = kt.compressed()
+    print kp.shape, kt.shape
     bin = np.linspace(kp.min(), kp.max(), 30)
     kp_b, kp_be, kt_b, kt_be, N, B =  MyF.AvgQ(kp, kt, bin)
     N[N == 0] = 1

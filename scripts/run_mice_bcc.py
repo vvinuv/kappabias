@@ -1,6 +1,6 @@
 from pylab import *
 from mytools import whiskerplot
-from MyFunc import *
+from bias.MyFunc import AvgQ
 from scipy import ndimage
 import bias.kappa_amara as kk
 import config as c
@@ -62,6 +62,7 @@ if __name__=='__main__':
     bin_k = linspace(k_1d.min(), k_1d.max(), 50)
 
     scatter(k_1d, k.kappa_pred[c.ig:-c.ig,c.ig:-c.ig].ravel(), s=0.01)
+    print type(k_1d), type(k.kappa_pred[c.ig:-c.ig,c.ig:-c.ig].ravel())
     xavg, xstd, yavg, ystd, N, B = AvgQ(k_1d, k.kappa_pred[c.ig:-c.ig,c.ig:-c.ig].ravel(), bin_k, sigma=2)
     errorbar(xavg, yavg, yerr=ystd/sqrt(N), xerr=xstd, c='r', ls='')
 
