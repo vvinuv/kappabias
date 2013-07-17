@@ -13,12 +13,24 @@ from astropy.stats.funcs import sigma_clip
 
 #from mayavi import mlab
 
-
-
 class KappaAmara:
 
     def __init__(self, ipath, shearfile, galaxyfile, opath, smooth, 
                  zs=1.0, zmin_s=0.4, zmax_s=1.1, zmin_g=0.1, zmax_g=1.1):
+
+    """This runs when defining a KappaAmara class object. These 
+    objects are characterized by the following parameters:
+    - a file containing shear info
+    - a file containing galaxy info
+    - a smoothing scale to generate density map (?) 
+    - zs (?)
+    - limits of lens galaxy redshift
+    - limits of source galaxy redshift 
+    - cosmology
+
+    It then initializes itself with these parameters, cutting 
+    out the galaxy sample of interest."""
+
         self.shearfile = os.path.join(ipath, shearfile)
         self.galaxyfile = os.path.join(ipath, galaxyfile)
         self.smooth = smooth
@@ -29,10 +41,12 @@ class KappaAmara:
         self.zmax_s = zmax_s
         self.initialize()
         #self.delta_rho_3d(bin_ra, bin_dec, bin_z)
-
     
     def initialize(self):
-        self.cosmo = {'omega_M_0':0.3, 'omega_lambda_0':0.7, 
+   
+    """initilize KappaAmara class object, called by __init__"""
+
+       self.cosmo = {'omega_M_0':0.3, 'omega_lambda_0':0.7, 
                       'omega_k_0':0.0, 'h':0.72}
 
         f = pyfits.open(self.galaxyfile)
@@ -44,11 +58,14 @@ class KappaAmara:
         self.dec = d.field('DEC')[con]
         self.kappa_true = np.zeros(self.ra.shape)
         self.z = self.z[con]
-
         d = 0
 
     def return_size(self, x, s=3):    
-        """Return size of Gaussina kernal"""
+
+    """Return size of Gaussina kernal. 
+    - x
+    - s      """
+
         if np.ceil(2*s*x) % 2 == 0:
             size = np.ceil(2*s*x) + 1.
         else:
@@ -57,41 +74,43 @@ class KappaAmara:
  
     def delta_rho_3d(self, bin_ra, bin_dec, bin_z):
 
+    """Calculate the density fluctuation map, on a grid. First calcualte 
+    the area considered, considering the sky projection?!"""
+
         ra_min, ra_max = self.ra.min(), self.ra.max()
         dec_min, dec_max = self.dec.min(), self.dec.max()
-        if ra_min < 2 and ra_max > 300:
+
+        if ra_min < 2 and ra_max > 300: # this is strange...
             raw_input("RA include both 0 and 360. The projection doesnt work")
+
         ra_avg = (ra_max + ra_min) / 2.
         dec_avg = (dec_max + dec_min) / 2.
 
-        #print 'Avg ', ra_avg, dec_avg
-
-        #Taking the dec factor in ra
         self.ra = ra_avg + (self.ra - ra_avg) * \
-                  np.cos(self.dec * np.pi / 180.0)  # deg
+                  np.cos(self.dec * np.pi / 180.0)  
+        # not sure why this is...
         ra_min, ra_max = self.ra.min(), self.ra.max()
 
-        #size of the field 
+        # size of the field 
         field_ra = ra_max - ra_min
         field_dec = dec_max - dec_min
         tot_area = field_ra * field_dec
         print 'Field area is %2.4f sq. deg'%(tot_area)
 
-
         if bin_ra is None:
-            bin_ra = self.ra.ptp() * 60.  #ie. 1 arcmin per pixel
+            bin_ra = self.ra.ptp() * 60.    # ie. 1 arcmin per pixel
         if bin_dec is None:
-            bin_dec = self.dec.ptp() * 60.  #ie. 1 arcmin per pixel
+            bin_dec = self.dec.ptp() * 60.  # ie. 1 arcmin per pixel
         if bin_z is None:
-            bin_z = self.z.ptp() / 0.1 # z=0.1 per bin
-
+            bin_z = self.z.ptp() / 0.1      # z=0.1 per bin
         self.pixel_scale = self.ra.ptp() * 60. / bin_ra 
-        if self.smooth == 0:
+
+        if self.smooth == 0: # no smoothing
             self.sigma = 0.0
             self.kern_size = 1
             self.g_2d = np.array([[1]]) 
             self.g_3d = np.array([[[1]]]) 
-        else:
+        else: # with smoothing
             self.sigma = self.smooth/self.pixel_scale 
             self.kern_size = self.return_size(self.sigma, s=3)
             self.g_2d = Gaussian(self.sigma, size=self.kern_size, ndim=2)
