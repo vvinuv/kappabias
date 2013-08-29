@@ -206,17 +206,17 @@ def pixelize_galcount(ipath, ifile, pix_scale, skip=0, opath='./',
     
     np.savez(ofile, number=n, ra=ra_b, dec = dec_b)
 
-    return ofile, mask#, ra_min, ra_max, dec_min, dec_max, ra_avg
+    return ofile, mask #, ra_min, ra_max, dec_min, dec_max, ra_avg
 
 def pixelize_shear_CFHT(ipath, ifile, pix_scale, zmin=0.4, zmax=1.4,
                         skip=0, opath='./', ofile=None,
                         rotate=False, constrain=0, coord=(0,0), 
                         bin_ra=None, bin_dec=None, 
                     col_names=['RA', 'DEC', 'z', 'E1', 'E2', 'W', 'SN', 'Re']):
-    """Pixelize the galaxy shear. pix_scale in arcmin. The ifile has 
-       the format ra dec (degrees) E1 E2. Rotate=True will rotate the shear
-       by 45 deg. It is useful for testing B-mode. col_names tells the column 
-       names in the fits file """
+"""Pixelize the galaxy shear. pix_scale in arcmin. The ifile has 
+the format ra dec (degrees) E1 E2. Rotate=True will rotate the shear
+by 45 deg. It is useful for testing B-mode. col_names tells the column 
+names in the fits file """
   
     if ofile is None:
         ofile = os.path.join(opath, 'pixelized_%s.npz'%ifile.split('.')[0])
@@ -251,8 +251,9 @@ def pixelize_shear_CFHT(ipath, ifile, pix_scale, zmin=0.4, zmax=1.4,
     W = W[con]
     z = z[con]
     SN = SN[con]
-    Re = Re[con] * 0.187 #pixel to arcsec which is needed for additive correction
-    #print 'nRa ', ra.shape, ra.min(), ra.max()
+    Re = Re[con] * 0.187 
+    # pixel to arcsec which is needed for additive correction
+    # print 'nRa ', ra.shape, ra.min(), ra.max()
 
     if rotate:
         E11 = E1 * np.cos(90. * np.pi / 180.) - E2 * np.sin(90. * np.pi / 180.)
@@ -335,7 +336,7 @@ def pixelize_shear_CFHT(ipath, ifile, pix_scale, zmin=0.4, zmax=1.4,
 
     np.savez(ofile, epsilon=epsilon*mask, ra=ra_b, dec = dec_b, number=Nm, mask=mask)
 
-    return ofile, mask#, ra_min, ra_max, dec_min, dec_max, ra_avg
+    return ofile, mask #, ra_min, ra_max, dec_min, dec_max, ra_avg
 
 
 

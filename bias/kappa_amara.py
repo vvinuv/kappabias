@@ -11,8 +11,6 @@ import kappa_utils as ku
 import minuit
 from astropy.stats.funcs import sigma_clip
 
-#from mayavi import mlab
-
 class KappaAmara:
 
     def __init__(self, ipath, shearfile, galaxyfile, opath, smooth, 
@@ -137,7 +135,7 @@ class KappaAmara:
         self.n1d = N1d / (self.N3d.shape[1] * self.N3d.shape[2] * 1.0) 
         self.n1d[self.n1d == 0] = 1
  
-        #print bin_ra, bin_dec, bin_z, self.N3d.shape, self.n1d.shape
+        # print bin_ra, bin_dec, bin_z, self.N3d.shape, self.n1d.shape
 
         # subtracting the average number from each redshift slice.
         self.n3d = self.N3d - self.n1d[:,np.newaxis][:,np.newaxis] 
@@ -203,11 +201,15 @@ class KappaAmara:
 
     def true_values(self, g_to_k=False, e_sign = [-1, -1], 
                     col_names=['RA', 'DEC', 'z', 'E1', 'E2', 'W', 'SN', 'Re']):
-        """g_to_k=True implies that create kappa from gamma, otherwise just 
-           read kappa directly from the fits table. e_sign tells what is the 
-           correct sign for e1 and e2. col_names tells the column names in
-           the fits file. It works only with g_to_k=False. Otherwise use 
-           difault name for column from the simulation"""
+
+    """ Calculate the true values of what? """
+
+    """ g_to_k=True implies that create kappa from gamma, otherwise just 
+    read kappa directly from the fits table. e_sign tells what is the 
+    correct sign for e1 and e2. col_names tells the column names in
+    the fits file. It works only with g_to_k=False. Otherwise use 
+    default name for column from the simulation """
+
         if g_to_k:
             shearfile1 = os.path.split(self.shearfile)[1].split('.')[0]
             ofile = 'pixelized_%s.npz'%shearfile1
@@ -235,8 +237,9 @@ class KappaAmara:
             self.kappa_true = ku.gamma_to_kappa(epsilon, dt1, dt2=dt2).real
             self.gamma1_true = epsilon.real 
             self.gamma2_true = epsilon.imag
+
         else:
-            #Reading galaxy file to get the kappa map
+            # Reading galaxy file to get the kappa map
             f = pyfits.open(self.galaxyfile)
             d = f[1].data
             f.close()
@@ -256,7 +259,7 @@ class KappaAmara:
 
             self.kappa_true = Nk / (1. * N)
 
-            #Reading source catalog to get the shear field
+            # Reading source catalog to get the shear field
             f = pyfits.open(self.shearfile)
             d = f[1].data
             f.close()
@@ -283,7 +286,7 @@ class KappaAmara:
             self.gamma1_true = Ng1 / (1. * N)
             self.gamma2_true = Ng2 / (1. * N)
 
-            #Masked convolution
+            # Masked convolution
             self.kappa_true = convolve_mask_fft(self.kappa_true, \
                                                 self.mask_lens, \
                                                 self.g_2d, ignore=0.50)
