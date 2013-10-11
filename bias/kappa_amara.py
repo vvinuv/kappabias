@@ -17,14 +17,14 @@ from astropy.stats import sigma_clip
 
 class KappaAmara:
 
-    def __init__(self, ipath, shearfile, galaxyfile, opath, smooth, 
-                 zs=1.0, zmin_s=0.4, zmax_s=1.1, zmin_g=0.1, zmax_g=1.1):
-        self.shearfile = os.path.join(ipath, shearfile)
-        self.galaxyfile = os.path.join(ipath, galaxyfile)
+    def __init__(self, ipath, sourcefile, lensfile, opath, smooth, 
+                 zs=1.0, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1):
+        self.sourcefile = os.path.join(ipath, sourcefile)
+        self.lensfile = os.path.join(ipath, lensfile)
         self.smooth = smooth
         self.zs = zs
-        self.zmin_g = zmin_g
-        self.zmax_g = zmax_g
+        self.zmin_l = zmin_l
+        self.zmax_l = zmax_l
         self.zmin_s = zmin_s
         self.zmax_s = zmax_s
         self.initialize()
@@ -35,11 +35,11 @@ class KappaAmara:
         self.cosmo = {'omega_M_0':0.3, 'omega_lambda_0':0.7, 
                       'omega_k_0':0.0, 'h':0.72}
 
-        f = pyfits.open(self.galaxyfile)
+        f = pyfits.open(self.lensfile)
         d = f[1].data
         f.close()
         self.z = d.field('z') 
-        con = (self.z >= self.zmin_g) & (self.z <= self.zmax_g)
+        con = (self.z >= self.zmin_l) & (self.z <= self.zmax_l)
         self.ra = d.field('RA')[con] 
         self.dec = d.field('DEC')[con]
         self.kappa_true = np.zeros(self.ra.shape)
@@ -167,15 +167,15 @@ class KappaAmara:
         # Smooth the 3d density field and find kappa from that
         self.mask_3d = np.ones(self.delta3d.shape) * self.mask
         self.delta3d_sm = convolve_mask_fft(self.delta3d, \
-                                        self.mask_3d, self.g_3d, ignore=0.30)
-        self.kappa_pred_sm = constant * np.sum(integral_1 * self.delta3d_sm, \
+                                        self.mask_3d, self.g_3d, ignore=0.0)
+        self.kappa_pred_3d = constant * np.sum(integral_1 * self.delta3d_sm, \
                                                axis=0)
 
         # Use unsmoothed density field and generate kappa from that. Later
         # smooth the 2D kappa field
         self.kappa_pred = constant * np.sum(integral_1 * self.delta3d, axis=0)
         self.kappa_pred = convolve_mask_fft(self.kappa_pred, self.mask, \
-                                        self.g_2d, ignore=0.30) 
+                                        self.g_2d, ignore=0.0) 
 
         #print integral_1.shape, self.delta3d.shape, self.kappa_pred.shape
 
@@ -190,14 +190,14 @@ class KappaAmara:
            the fits file. It works only with g_to_k=False. Otherwise use 
            difault name for column from the simulation"""
         if g_to_k:
-            shearfile1 = os.path.split(self.shearfile)[1].split('.')[0]
-            ofile = 'pixelized_%s.npz'%shearfile1
-            ofile, mask = ku.pixelize_shear_CFHT('.', self.shearfile, \
+            sourcefile1 = os.path.split(self.sourcefile)[1].split('.')[0]
+            ofile = 'pixelized_%s.npz'%sourcefile1
+            ofile, mask = ku.pixelize_shear_CFHT('.', self.sourcefile, \
                           self.pixel_scale, ofile=ofile, \
                           bin_ra=self.raedges, bin_dec=self.decedges,
                           zmin=self.zmin_s, zmax=self.zmax_s,
                           col_names=col_names)
-            f = np.load('pixelized_%s.npz'%shearfile1)
+            f = np.load('pixelized_%s.npz'%sourcefile1)
             epsilon = f['epsilon']
             Nm = f['number']
             dt2 = self.pixel_scale
@@ -218,17 +218,18 @@ class KappaAmara:
             self.gamma2_true = epsilon.imag
         else:
             #Reading galaxy file to get the kappa map
-            f = pyfits.open(self.galaxyfile)
+            f = pyfits.open(self.sourcefile)
             d = f[1].data
             f.close()
-            z_gal = d.field('Z')
-            con = (z_gal >= self.zmin_g) & (z_gal <= self.zmax_g)
+            z_source = d.field('Z')
+            con = (z_source >= self.zmin_s) & (z_source <= self.zmax_s)
+            print 'Hello VV'
             ra_sh = d.field('RA')[con]
             dec_sh = d.field('DEC')[con]
             kappa_true = d.field('KAPPA')[con]
             N, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
                    bins=(self.decedges, self.raedges))
-            self.mask_lens = N.copy()
+            self.mask_lens = N.copy() + 1
             Nk, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
                    bins=(self.decedges, self.raedges), weights=kappa_true)
 
@@ -238,21 +239,21 @@ class KappaAmara:
             self.kappa_true = Nk / (1. * N)
 
             #Reading source catalog to get the shear field
-            f = pyfits.open(self.shearfile)
+            f = pyfits.open(self.sourcefile)
             d = f[1].data
             f.close()
-            z_sh = d.field('Z')
-            con = (z_sh >= self.zmin_s) & (z_sh <= self.zmax_s)
+            z_source = d.field('Z')
+            con = (z_source >= self.zmin_s) & (z_source <= self.zmax_s)
             ra_sh = d.field('RA')[con]
             dec_sh = d.field('DEC')[con]
             gamma1_true = d.field('GAMMA1')[con]
             gamma2_true = d.field('GAMMA2')[con]
-            z_sh = z_sh[con]
+            z_source = z_source[con]
             d = 0
 
             N, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
                    bins=(self.decedges, self.raedges))
-            self.mask = N.copy()
+            self.mask = N.copy() + 1
             Ng1, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
                    bins=(self.decedges, self.raedges), weights=gamma1_true)
             Ng2, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
@@ -267,11 +268,13 @@ class KappaAmara:
             #Masked convolution
             self.kappa_true = convolve_mask_fft(self.kappa_true, \
                                                 self.mask_lens, \
-                                                self.g_2d, ignore=0.50)
+                                                self.g_2d, ignore=0.0)
             self.gamma1_true = convolve_mask_fft(self.gamma1_true, self.mask, \
-                                                self.g_2d, ignore=0.50)
+                                                self.g_2d, ignore=0.0) * \
+                                                e_sign[0]
             self.gamma2_true = convolve_mask_fft(self.gamma2_true, self.mask, \
-                                                self.g_2d, ignore=0.50)
+                                                self.g_2d, ignore=0.0) * \
+                                                e_sign[1]
 
 
     def gamma_predicted(self):
@@ -321,7 +324,7 @@ class BiasModeling:
 
         if bias_model == 'linear':
             self.linear_bias()
-            self.linear_bias_boot(boot_real=boot_real, 
+            self.linear_bias_cov_boot(boot_real=boot_real, 
                                   boot_sample=boot_sample)
             self.linear_bias_error()
         elif bias_model == 'linear_evolve':
@@ -347,6 +350,7 @@ class BiasModeling:
         
         self.sigma = sigma
         self.do_plot = do_plot
+        self.rN = 5
 
     def binning(self, valid=None, boot=False):
         #Based on Amara et al. Not that the true value is binned
@@ -371,9 +375,10 @@ class BiasModeling:
         #print self.g1p_b, g1p_be, self.g1t_b, self.g1t_be
      
         if self.do_plot and boot is False: 
-            N, E = np.histogramdd(np.array([self.g1t, self.g1p]).T, bins=(bin1, bin1))
+            gN = self.g1t_b.shape[0]
+            N, E = np.histogramdd(np.array([self.g1t, self.g1p]).T, bins=(self.bin1, self.bin1))
             pl.subplot(121) 
-            pl.contourf(N, origin='lower', extent=[bin1[0], bin1[-1], bin1[0], bin1[-1]])
+            pl.contourf(N, origin='lower', extent=[self.bin1[0], self.bin1[-1], self.bin1[0], self.bin1[-1]])
             #pl.colorbar()
             pl.scatter(self.g1p, self.g1t, s=0.01) 
             pl.scatter(self.g1p[B1==1], self.g1t[B1==1], c='r', s=5.01, edgecolor='') 
@@ -382,7 +387,7 @@ class BiasModeling:
             #for xx, yy in zip(self.g1p_b, self.g1t_b):
             # print xx, yy
 
-            pl.errorbar(self.g1p_b, self.g1t_b, self.g1t_be/np.sqrt(N1), c='r')
+            pl.errorbar(self.g1p_b[self.rN:gN-self.rN], self.g1t_b[self.rN:gN-self.rN], self.g1t_be[self.rN:gN-self.rN]/np.sqrt(N1[self.rN:gN-self.rN]), c='r')
             pl.xlabel(r'$\gamma_1^p$')
             pl.ylabel(r'$\gamma_1^t$')
             pl.xticks([-0.02,-0.015,-0.01,-0.005,0.0,0.005, 0.01, 0.015, 0.02])
@@ -406,16 +411,19 @@ class BiasModeling:
     def linear_bias(self, boot=False):
         """Predicted gamma = gamma_g * 1/b. The parameter b[0] used here
            is 1/b not b"""
-        
+        gN = self.g1t_b.shape[0] 
         b_init = [1]
-        chi2_1 = lambda b: np.sum(((self.g1t_b - self.g1p_b * b[0]) 
-                               / self.g1t_be)**2)
+        chi2_1 = lambda b: np.sum(((self.g1t_b[self.rN:gN-self.rN] - 
+                                    self.g1p_b[self.rN:gN-self.rN] * b[0]) 
+                                    / self.g1t_be[self.rN:gN-self.rN])**2)
         bias1 = optimize.fmin(chi2_1, b_init)
-        chi2_2 = lambda b: np.sum(((self.g2t_b - self.g2p_b * b[0]) 
-                               / self.g2t_be)**2)
+        chi2_2 = lambda b: np.sum(((self.g2t_b[self.rN:gN-self.rN] - 
+                                    self.g2p_b[self.rN:gN-self.rN] * b[0]) 
+                                   / self.g2t_be[self.rN:gN-self.rN])**2)
         bias2 = optimize.fmin(chi2_2, b_init)
-        chi2_3 = lambda b: np.sum(((self.gt_b - self.gp_b * b[0]) 
-                               / self.gt_be)**2)
+        chi2_3 = lambda b: np.sum(((self.gt_b[self.rN:gN-self.rN] - 
+                                    self.gp_b[self.rN:gN-self.rN] * b[0]) 
+                                    / self.gt_be[self.rN:gN-self.rN])**2)
         bias = optimize.fmin(chi2_3, b_init)
 
         if boot is False:
@@ -425,18 +433,67 @@ class BiasModeling:
 
         return 1/bias1, 1/bias2, 1/bias
 
+    def linear_bias_cov_boot(self, boot_real=20, boot_sample=None):
+        """Bias error using bootstrap"""
+        trN = self.rN
+        self.rN = 3
+        if boot_sample is None:
+            boot_sample = self.g1t.shape[0]
+
+        b1_arr, b2_arr, b_arr = [], [], []
+        for i in range(boot_real):
+            #print 'Boot sample > %d'%i
+            valid = np.random.randint(0, self.g1t.shape[0], boot_sample)
+            s1 = np.std(self.g1p[valid])
+            s2 = np.std(self.g2p[valid])
+            s = np.std(self.gp[valid])
+         
+            b1 = np.cov(self.g1t[valid] / s1, self.g1p[valid] / s1)
+            b2 = np.cov(self.g2t[valid] / s2, self.g2p[valid] / s2)
+            b = np.cov(self.gt[valid] / s, self.gp[valid] / s)
+           
+            b1_arr.append(1/b1[0][1])
+            b2_arr.append(1/b2[0][1])
+            b_arr.append(1/b[0][1])
+        b1_arr.sort()
+        b2_arr.sort()
+        b_arr.sort()
+
+        #pl.hist(b1_arr, histtype='step', color='r', label='g1')
+        #pl.hist(b2_arr, histtype='step', color='k', label='g2')
+        #pl.legend() 
+        #pl.show()
+
+        larg = np.floor(0.16*boot_real - 1).astype(int)
+        harg = np.floor(0.84*boot_real - 1).astype(int)
+
+        self.b1_med = np.median(b1_arr)
+        self.b1_l, self.b1_h =  self.b1_med - b1_arr[larg], b1_arr[harg] - self.b1_med
+                         
+        self.b2_med = np.median(b2_arr)
+        self.b2_l, self.b2_h =  self.b2_med - b2_arr[larg], b2_arr[harg] - self.b2_med
+
+        self.b_med = np.median(b_arr)
+        self.b_l, self.b_h =  self.b_med - b_arr[larg], b_arr[harg] - self.b_med
+  
+        print 'b1 (boot) = %2.2f - %2.2f + %2.2f'%(self.b1_med, self.b1_l, self.b1_h) 
+        print 'b2 (boot) = %2.2f - %2.2f + %2.2f'%(self.b2_med, self.b2_l, self.b2_h) 
+        print 'b (boot) = %2.2f - %2.2f + %2.2f'%(self.b_med, self.b_l, self.b_h) 
+        self.rN = trN
+
+
     def linear_bias_boot(self, boot_real=20, boot_sample=None):
         """Bias error using bootstrap"""
+        trN = self.rN
+        self.rN = 3
         if boot_sample is None:
             boot_sample = self.g1t.shape[0]
 
         b1_arr, b2_arr, b_arr = [], [], []
         for i in range(boot_real):
             print 'Boot sample > %d'%i
-            boot_samples = np.floor(np.random.uniform(0,
-                                                      self.g1t.shape[0],
-                                                      boot_sample))
-            boot_samples = boot_samples.astype('int')
+            boot_samples = np.random.randint(0, self.g1t.shape[0],
+                                                      boot_sample)
             self.binning(valid=boot_samples)
 
             b1, b2, b = self.linear_bias(boot=True)    
@@ -450,18 +507,20 @@ class BiasModeling:
         larg = np.floor(0.16*boot_real - 1).astype(int)
         harg = np.floor(0.84*boot_real - 1).astype(int)
 
-        b1_med = np.median(b1_arr)
-        b1_l, b1_h =  b1_med - b1_arr[larg], b1_arr[harg] - b1_med
+        self.b1_med = np.median(b1_arr)
+        self.b1_l, self.b1_h =  self.b1_med - b1_arr[larg], b1_arr[harg] - self.b1_med
                          
-        b2_med = np.median(b2_arr)
-        b2_l, b2_h =  b2_med - b2_arr[larg], b2_arr[harg] - b2_med
+        self.b2_med = np.median(b2_arr)
+        self.b2_l, self.b2_h =  self.b2_med - b2_arr[larg], b2_arr[harg] - self.b2_med
 
-        b_med = np.median(b_arr)
-        b_l, b_h =  b_med - b_arr[larg], b_arr[harg] - b_med
+        self.b_med = np.median(b_arr)
+        self.b_l, self.b_h =  self.b_med - b_arr[larg], b_arr[harg] - self.b_med
   
-        print 'b1 (boot) = %2.2f - %2.2f + %2.2f'%(b1_med, b1_l, b1_h) 
-        print 'b2 (boot) = %2.2f - %2.2f + %2.2f'%(b2_med, b2_l, b2_h) 
-        print 'b (boot) = %2.2f - %2.2f + %2.2f'%(b_med, b_l, b_h) 
+        print 'b1 (boot) = %2.2f - %2.2f + %2.2f'%(self.b1_med, self.b1_l, self.b1_h) 
+        print 'b2 (boot) = %2.2f - %2.2f + %2.2f'%(self.b2_med, self.b2_l, self.b2_h) 
+        print 'b (boot) = %2.2f - %2.2f + %2.2f'%(self.b_med, self.b_l, self.b_h) 
+        self.rN = trN
+
 
     def return_bias(self, chi2):
         m = minuit.Minuit(chi2)
@@ -477,15 +536,19 @@ class BiasModeling:
     def linear_bias_error(self):
         """Predicted gamma = gamma_g * 1/b. The parameter b[0] used here
            is 1/b not b"""
+        gN = self.g1t_b.shape[0] 
         b_init = [1]
-        chi2_1 = lambda b: np.sum(((self.g1t_b - self.g1p_b * b) 
-                               / self.g1t_be)**2)
+        chi2_1 = lambda b: np.sum(((self.g1t_b[self.rN:gN-self.rN] - 
+                                    self.g1p_b[self.rN:gN-self.rN] * b) 
+                                  / self.g1t_be[self.rN:gN-self.rN])**2)
         self.bias1, self.bias1_e = self.return_bias(chi2_1)
-        chi2_2 = lambda b: np.sum(((self.g2t_b - self.g2p_b * b) 
-                               / self.g2t_be)**2)
+        chi2_2 = lambda b: np.sum(((self.g2t_b[self.rN:gN-self.rN] - 
+                                    self.g2p_b[self.rN:gN-self.rN] * b) 
+                               / self.g2t_be[self.rN:gN-self.rN])**2)
         self.bias2, self.bias2_e = self.return_bias(chi2_2)
-        chi2_3 = lambda b: np.sum(((self.gt_b - self.gp_b * b) 
-                               / self.gt_be)**2)
+        chi2_3 = lambda b: np.sum(((self.gt_b[self.rN:gN-self.rN] - 
+                                    self.gp_b[self.rN:gN-self.rN] * b) 
+                               / self.gt_be[self.rN:gN-self.rN])**2)
         self.bias3, self.bias3_e = self.return_bias(chi2_3)
 
 
