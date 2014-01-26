@@ -5,6 +5,14 @@ from numpy import random
 from scipy.signal import convolve2d, fftconvolve
 import scipy.ndimage as nd
 
+@np.vectorize
+def divide_array(a,b):
+    '''a/b'''
+    if abs(b) < 1e-1:
+        return 0.
+    else:
+        return a/b
+
 def Gaussian(sigma, size=11, ndim=2):
     """size should always be odd number"""
     if size % 2 == 0:
@@ -15,8 +23,13 @@ def Gaussian(sigma, size=11, ndim=2):
     if ndim == 3:
         z, y, x = np.indices((size, size, size))
         r = np.sqrt((x - size/2)**2. + (y - size/2)**2. + (z-size/2)**2.)
-    g = np.exp(-r**2. / (2 * sigma**2.))
-    #print r[5,5] #This corresponds to r=0, i.e the center
+    if sigma > 0:
+        g = np.exp(-r**2. / (2 * sigma**2.))
+        #print r[5,5] #This corresponds to r=0, i.e the center
+    else:
+        ind = np.argmin(r)
+        g = r * 0.0
+        g[np.unravel_index(ind, g.shape)] = 1.0 
     g /= g.sum()
     return g 
 
@@ -24,7 +37,7 @@ def convolve_mask_fft(input, mask, kernal, ignore=0.50):
     """Convolve masked array. ignore=0.5 means that if the total weight of 
        the weight in the unmasked region is less than 50% then that will
        set to zero """
-
+    np.seterr(divide='raise')
     input = input.astype(np.float32)
     mask = mask.astype(np.float32)
     kernal = kernal.astype(np.float32)
@@ -32,16 +45,18 @@ def convolve_mask_fft(input, mask, kernal, ignore=0.50):
     input *= mask
 
     kernal /= kernal.sum()
-    c = fftconvolve(input, kernal, mode='same')
-    cm = fftconvolve(mask, kernal, mode='same')
-    m_cm = cm.copy()
-    cm[cm == 0] = 1
+    c = fftconvolve(input, kernal, mode='same') #Not considering mask
+    cm = fftconvolve(mask, kernal, mode='same') 
     
-    c /= cm
+    c_mask = divide_array(c, cm) #correcting for mask
+    c_mask_ig = c_mask.copy() #setting some pixels to zero based on ignore
+    c_mask_ig[cm < ignore] = 0.0
 
-    c[m_cm < ignore] = 0.0
-  
-    return c
+    #pl.imshow(m_cm)
+    #pl.colorbar()
+    #pl.show()
+
+    return c, c_mask, c_mask_ig
 
 
 def convolve_mask(input, mask, kernal, ignore=0.50):

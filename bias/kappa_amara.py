@@ -44,7 +44,6 @@ class KappaAmara:
         self.dec = d.field('DEC')[con]
         self.kappa_true = np.zeros(self.ra.shape)
         self.z = self.z[con]
-
         d = 0
 
     def return_size(self, x, s=3):    
@@ -56,6 +55,7 @@ class KappaAmara:
         return size
  
     def delta_rho_3d(self, bin_ra, bin_dec, bin_z):
+        self.mask = np.ones((bin_ra, bin_dec))
 
         ra_min, ra_max = self.ra.min(), self.ra.max()
         dec_min, dec_max = self.dec.min(), self.dec.max()
@@ -166,7 +166,7 @@ class KappaAmara:
 
         # Smooth the 3d density field and find kappa from that
         self.mask_3d = np.ones(self.delta3d.shape) * self.mask
-        self.delta3d_sm = convolve_mask_fft(self.delta3d, \
+        xxx, self.delta3d_sm, yyy = convolve_mask_fft(self.delta3d, \
                                         self.mask_3d, self.g_3d, ignore=0.0)
         self.kappa_pred_3d = constant * np.sum(integral_1 * self.delta3d_sm, \
                                                axis=0)
@@ -174,10 +174,10 @@ class KappaAmara:
         # Use unsmoothed density field and generate kappa from that. Later
         # smooth the 2D kappa field
         self.kappa_pred = constant * np.sum(integral_1 * self.delta3d, axis=0)
-        self.kappa_pred = convolve_mask_fft(self.kappa_pred, self.mask, \
+        xxx, self.kappa_pred, yyy = convolve_mask_fft(self.kappa_pred, self.mask, \
                                         self.g_2d, ignore=0.0) 
 
-        #print integral_1.shape, self.delta3d.shape, self.kappa_pred.shape
+        print integral_1.shape, self.delta3d.shape, self.kappa_pred.shape
 
         np.savez('kappa_predicted.npz', kappa=self.kappa_pred)
 
@@ -203,11 +203,12 @@ class KappaAmara:
             dt2 = self.pixel_scale
             dt1 = self.pixel_scale
             self.mask = f['mask']
-            e1 = convolve_mask_fft(epsilon.real, self.mask, 
+            xxx, e1, yyy = convolve_mask_fft(epsilon.real, self.mask, 
                                    self.g_2d, ignore=0.50)
-            e2 = convolve_mask_fft(epsilon.imag, self.mask, 
+            xxx, e2, yyy = convolve_mask_fft(epsilon.imag, self.mask, 
                                    self.g_2d, ignore=0.50)
-            Nm = convolve_mask_fft(Nm, self.mask, self.g_2d, ignore=0.50)
+            xxx, Nm, yyy = convolve_mask_fft(Nm, self.mask, self.g_2d, 
+                                   ignore=0.50)
             Nm[Nm == 0] = 1
 
             epsilon = e_sign[0] * e1 + e_sign[1] * 1j * e2
@@ -266,13 +267,15 @@ class KappaAmara:
             self.gamma2_true = Ng2 / (1. * N)
 
             #Masked convolution
-            self.kappa_true = convolve_mask_fft(self.kappa_true, \
+            xxx, self.kappa_true, yyy = convolve_mask_fft(self.kappa_true, \
                                                 self.mask_lens, \
                                                 self.g_2d, ignore=0.0)
-            self.gamma1_true = convolve_mask_fft(self.gamma1_true, self.mask, \
+            xxx, self.gamma1_true, yyy = convolve_mask_fft(self.gamma1_true,\
+                                                self.mask, \
                                                 self.g_2d, ignore=0.0) * \
                                                 e_sign[0]
-            self.gamma2_true = convolve_mask_fft(self.gamma2_true, self.mask, \
+            xxx, self.gamma2_true, yyy = convolve_mask_fft(self.gamma2_true, \
+                                                self.mask, \
                                                 self.g_2d, ignore=0.0) * \
                                                 e_sign[1]
 
