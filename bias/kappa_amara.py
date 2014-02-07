@@ -18,7 +18,8 @@ from astropy.stats import sigma_clip
 class KappaAmara:
 
     def __init__(self, ipath, sourcefile, lensfile, opath, smooth, 
-                 zs=1.0, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1):
+                 zs=1.0, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1,
+                 rho_weight=None):
         self.sourcefile = os.path.join(ipath, sourcefile)
         self.lensfile = os.path.join(ipath, lensfile)
         self.smooth = smooth
@@ -43,6 +44,10 @@ class KappaAmara:
         self.ra = d.field('RA')[con] 
         self.dec = d.field('DEC')[con]
         self.kappa_true = np.zeros(self.ra.shape)
+        if 'W' in d.values():
+            self.rho_weight = d.field('RA')[con]
+        else:
+            self.rho_weight = np.ones(self.ra.shape)
         self.z = self.z[con]
         d = 0
 
@@ -101,7 +106,8 @@ class KappaAmara:
         print 'Sigma %2.2f pixels'%self.sigma
 
         self.N3d, edges = np.histogramdd(np.array([self.z, self.dec, 
-                          self.ra]).T, bins=(bin_z, bin_dec, bin_ra))
+                          self.ra]).T, bins=(bin_z, bin_dec, bin_ra),
+                          weights=self.rho_weight)
 
         self.raedges = edges[2]
         self.decedges = edges[1]
@@ -111,7 +117,8 @@ class KappaAmara:
         self.decavg = (self.decedges[:-1] + self.decedges[1:]) / 2.
 
         # The total galaxies per redshift slice
-        N1d, zedge = np.histogram(self.z, bins=self.zedges) 
+        N1d, zedge = np.histogram(self.z, bins=self.zedges, 
+                     weights=self.rho_weight) 
 
         # Average per redshift slices. Dividing it by the number of 
         # pixels in RA and DEC directions 
@@ -138,19 +145,19 @@ class KappaAmara:
         self.cosmo = {'omega_M_0':0.3, 'omega_lambda_0':0.7, 
                       'omega_k_0':0.0, 'h':0.72}
         comoving_edges = cd.comoving_distance(self.zedges, **self.cosmo) #Mpc
-        comoving_edges /= (1. + self.zedges)
         self.d_c = cd.comoving_distance(self.zavg, **self.cosmo) #Mpc
-
-        #There is some subtilities in this case. When using MICE, the answer
-        #makes sense when commenting the following line. When using BCC
-        #it requires the following line
-        #self.d_c /= (1. + self.zavg)
 
         #self.d_s = comoving_edges[-1] #source distance
         self.d_s = cd.comoving_distance(self.zs, **self.cosmo) #source distance
-        #self.d_s /= (1. + self.zs)
         self.delta_d = comoving_edges[1:] - comoving_edges[:-1]
-        
+
+        #There is some subtilities in this case. When using MICE, the answer
+        #makes sense when commenting the following lines. When using BCC
+        #it requires the following lines
+        #comoving_edges /= (1. + self.zedges)
+        #self.d_c /= (1. + self.zavg)
+        #self.d_s /= (1. + self.zs)
+       
         self.a = 1 / (1 + self.zavg)
 
     def kappa_predicted(self):
@@ -174,9 +181,10 @@ class KappaAmara:
         # Use unsmoothed density field and generate kappa from that. Later
         # smooth the 2D kappa field
         self.kappa_pred = constant * np.sum(integral_1 * self.delta3d, axis=0)
-        xxx, self.kappa_pred, yyy = convolve_mask_fft(self.kappa_pred, self.mask, \
-                                        self.g_2d, ignore=0.0) 
-
+        xxx, self.kappa_pred, yyy = convolve_mask_fft(self.kappa_pred, 
+                                                      self.mask, 
+                                                      self.g_2d, ignore=0.0) 
+        self.gamma_p = ku.kappa_to_gamma(self.kappa_pred,self.pixel_scale,dt2=None) 
         print integral_1.shape, self.delta3d.shape, self.kappa_pred.shape
 
         np.savez('kappa_predicted.npz', kappa=self.kappa_pred)
@@ -218,30 +226,10 @@ class KappaAmara:
             self.gamma1_true = epsilon.real 
             self.gamma2_true = epsilon.imag
         else:
-            #Reading galaxy file to get the kappa map
-            f = pyfits.open(self.sourcefile)
-            d = f[1].data
-            f.close()
-            z_source = d.field('Z')
-            con = (z_source >= self.zmin_s) & (z_source <= self.zmax_s)
-            print 'Hello VV'
-            ra_sh = d.field('RA')[con]
-            dec_sh = d.field('DEC')[con]
-            kappa_true = d.field('KAPPA')[con]
-            N, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
-                   bins=(self.decedges, self.raedges))
-            self.mask_lens = N.copy() + 1
-            Nk, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
-                   bins=(self.decedges, self.raedges), weights=kappa_true)
-
-            N[N == 0] = 1
-            self.mask_lens[self.mask_lens > 0] = 1
-
-            self.kappa_true = Nk / (1. * N)
-
             #Reading source catalog to get the shear field
             f = pyfits.open(self.sourcefile)
             d = f[1].data
+            header = f[1].header
             f.close()
             z_source = d.field('Z')
             con = (z_source >= self.zmin_s) & (z_source <= self.zmax_s)
@@ -250,11 +238,11 @@ class KappaAmara:
             gamma1_true = d.field('GAMMA1')[con]
             gamma2_true = d.field('GAMMA2')[con]
             z_source = z_source[con]
-            d = 0
 
             N, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
                    bins=(self.decedges, self.raedges))
             self.mask = N.copy() + 1
+            self.mask_lens = N.copy() + 1
             Ng1, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
                    bins=(self.decedges, self.raedges), weights=gamma1_true)
             Ng2, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
@@ -262,9 +250,24 @@ class KappaAmara:
 
             N[N == 0] = 1
             self.mask[self.mask > 0] = 1
+            self.mask_lens[self.mask_lens > 0] = 1
 
             self.gamma1_true = Ng1 / (1. * N)
             self.gamma2_true = Ng2 / (1. * N)
+
+            if 'KAPPA' in header.values(): 
+                kappa_true = d.field('KAPPA')[con]
+                Nk, E = np.histogramdd(np.array([dec_sh, ra_sh]).T,
+                       bins=(self.decedges, self.raedges), weights=kappa_true)
+
+                self.kappa_true = Nk / (1. * N)
+
+            else:
+                dt2 = self.pixel_scale
+                dt1 = self.pixel_scale
+                epsilon = e_sign[0] * self.gamma1_true + \
+                          e_sign[1] * 1j * self.gamma2_true
+                self.kappa_true = ku.gamma_to_kappa(epsilon, dt1, dt2=dt2).real
 
             #Masked convolution
             xxx, self.kappa_true, yyy = convolve_mask_fft(self.kappa_true, \
@@ -272,16 +275,23 @@ class KappaAmara:
                                                 self.g_2d, ignore=0.0)
             xxx, self.gamma1_true, yyy = convolve_mask_fft(self.gamma1_true,\
                                                 self.mask, \
-                                                self.g_2d, ignore=0.0) * \
-                                                e_sign[0]
+                                                self.g_2d, ignore=0.0)
+            self.gamma1_true *= e_sign[0]
             xxx, self.gamma2_true, yyy = convolve_mask_fft(self.gamma2_true, \
                                                 self.mask, \
-                                                self.g_2d, ignore=0.0) * \
-                                                e_sign[1]
+                                                self.g_2d, ignore=0.0)
+            self.gamma2_true *= e_sign[1]
+            self.gamma_true = self.gamma1_true + 1j * self.gamma2_true
+            self.gamma_tp = ku.kappa_to_gamma(self.kappa_true,self.pixel_scale,dt2=None) 
 
 
     def gamma_predicted(self):
-        """Eq. 26 of Schenider"""
+        """Eq. 26 of Schenider. I am going to deprecate this function as
+           the gamma_to_kappa function can be used to convert kappa back to 
+           gamma with a minor modification"""
+        print 'This function is deprecated. kappa_predicted() and '
+        print 'true_values() functions estimate predicted gamma'
+        '''
         @np.vectorize 
         def D_kernel(Dx, Dy, Dsq):
             if abs(Dsq)==0:
@@ -289,6 +299,8 @@ class KappaAmara:
             else:
                 return (Dy**2 - Dx**2) / Dsq**2., (-2 * Dx * Dy) / Dsq**2.
         Dx, Dy = np.mgrid[-10:10:21j, -10:10:21j]
+        Dx *= (self.pixel_scale / 60. * (np.pi/180.))
+        Dy *= (self.pixel_scale / 60. * (np.pi/180.))
         Dsq = Dx**2 + Dy**2
         #D1 = (Dy**2 - Dx**2) / Dsq**2.
         #D2 = (-2 * Dx * Dy) / Dsq**2.
@@ -301,8 +313,10 @@ class KappaAmara:
                                          D, mode='same') / np.pi
         self.gamma_tp = signal.convolve2d(self.kappa_true, \
                                          D, mode='same') / np.pi
-   
-
+  
+        self.gamma_pu = ku.kappa_to_gamma(self.kappa_pred,self.pixel_scale,dt2=None) 
+        self.gamma_tpu = ku.kappa_to_gamma(self.kappa_true,self.pixel_scale,dt2=None) 
+        '''
     def plot():
         a = np.random.randint(0, 100, size=100)
         b = np.random.randint(0, 10, size=100)

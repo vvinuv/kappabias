@@ -59,9 +59,11 @@ def gamma_to_kappa(shear,dt1,dt2=None):
     ipart,rpart = np.meshgrid(k2,k1)
     k = rpart + 1j*ipart
 
-    #compute (inverse) Kaiser-Squires kernel on this grid
-    fourier_map = np.conj( KS_kernel(-k) )
-
+    #compute (inverse, complex conjugate) Kaiser-Squires kernel on this grid
+    fourier_map = np.conj( KS_kernel(-k) ) #Inverse of Eq. 43 in Schieder p329
+                                           #use KS_kernel(k) to get Eq. 43
+    # Also note: pi in D(l) (Eq. 43) cancel with 1/pi in Eqs. 42. That is the 
+    # reason why I dont put pi in the Kernal 
     #compute Fourier transform of the shear
     gamma_fft = fftpack.fft2( shear, (2*N1,2*N2) )
 
@@ -70,6 +72,42 @@ def gamma_to_kappa(shear,dt1,dt2=None):
     kappa = fftpack.ifft2(kappa_fft)[:N1,:N2]
 
     return kappa
+
+def kappa_to_gamma(kappa,dt1,dt2=None):
+    """
+    simple application of Kaiser-Squires (1995) kernel in fourier
+    space to convert complex shear to complex convergence: imaginary
+    part of convergence is B-mode.
+    """
+    if not dt2:
+        dt2 = dt1
+    N1,N2 = kappa.shape
+
+    #convert angles from arcminutes to radians
+    dt1 = dt1 * np.pi / 180. / 60.
+    dt2 = dt2 * np.pi / 180. / 60.
+
+    #compute k values corresponding to field size
+    dk1 = np.pi / N1 / dt1
+    dk2 = np.pi / N2 / dt2
+
+    k1 = fftpack.ifftshift( dk1 * (np.arange(2*N1)-N1) )
+    k2 = fftpack.ifftshift( dk2 * (np.arange(2*N2)-N2) )
+
+    ipart,rpart = np.meshgrid(k2,k1)
+    k = rpart + 1j*ipart
+
+    #compute Kaiser-Squires kernel on this grid. Eq. 43 p. 329
+    fourier_map = np.conj( KS_kernel(k) )
+
+    #compute Fourier transform of the kappa
+    kappa_fft = fftpack.fft2( kappa, (2*N1,2*N2) )
+
+    gamma_fft = kappa_fft * fourier_map
+
+    gamma = fftpack.ifft2(gamma_fft)[:N1,:N2]
+
+    return gamma
 
 
 def pixelize_light(ipath, ifile, pix_scale, skip=0, opath='./', 
