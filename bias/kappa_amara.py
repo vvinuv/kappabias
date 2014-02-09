@@ -12,13 +12,12 @@ import minuit
 from astropy.stats import sigma_clip
 
 #from mayavi import mlab
-#TESTING COMMIT AND PUSH
 
 
 class KappaAmara:
 
     def __init__(self, ipath, sourcefile, lensfile, opath, smooth, 
-                 zs=1.0, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1,
+                 zs=None, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1,
                  rho_weight=None):
         self.sourcefile = os.path.join(ipath, sourcefile)
         self.lensfile = os.path.join(ipath, lensfile)
@@ -39,13 +38,26 @@ class KappaAmara:
         f = pyfits.open(self.lensfile)
         d = f[1].data
         f.close()
+
+        if self.zs is None: #Initialize arrays needed for pixelized source redshifts  
+            f = pyfits.open(self.sourcefile)
+            sd = f[1].data
+            f.close()
+            self.zs = sd.field['z']
+            scon = (self.zs >= zmin_s) & (self.zs <= zmax_s)        
+            self.sra = sd.field['RA'][scon]
+            self.sdec = sd.field['DEC'][scon]
+            self.zs = self.zs[scon]
+        else:
+            self.zs = 1.0
+            
         self.z = d.field('z') 
         con = (self.z >= self.zmin_l) & (self.z <= self.zmax_l)
         self.ra = d.field('RA')[con] 
         self.dec = d.field('DEC')[con]
         self.kappa_true = np.zeros(self.ra.shape)
         if 'W' in d.values():
-            self.rho_weight = d.field('RA')[con]
+            self.rho_weight = d.field('RA')[con]#Why is this 'RA'???
         else:
             self.rho_weight = np.ones(self.ra.shape)
         self.z = self.z[con]
