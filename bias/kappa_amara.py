@@ -12,7 +12,7 @@ import minuit
 from astropy.stats import sigma_clip
 
 #from mayavi import mlab
-
+#TESTING COMMIT AND PUSH
 
 
 class KappaAmara:
