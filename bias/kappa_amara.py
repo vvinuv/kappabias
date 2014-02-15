@@ -43,13 +43,15 @@ class KappaAmara:
             f = pyfits.open(self.sourcefile)
             sd = f[1].data
             f.close()
-            self.zs = sd.field['z']
+            self.zs = sd.field['z'] #Source Z values
             scon = (self.zs >= zmin_s) & (self.zs <= zmax_s)        
-            self.sra = sd.field['RA'][scon]
-            self.sdec = sd.field['DEC'][scon]
+            self.sra = sd.field['RA'][scon] #Source RA Values
+            self.sdec = sd.field['DEC'][scon] #Source DEC Values
             self.zs = self.zs[scon]
+            self.pix_source_z = True #boolean for future use
         else:
             self.zs = 1.0
+            self.pix_source_z = False
             
         self.z = d.field('z') 
         con = (self.z >= self.zmin_l) & (self.z <= self.zmax_l)
@@ -57,7 +59,7 @@ class KappaAmara:
         self.dec = d.field('DEC')[con]
         self.kappa_true = np.zeros(self.ra.shape)
         if 'W' in d.values():
-            self.rho_weight = d.field('RA')[con]#Why is this 'RA'???
+            self.rho_weight = d.field('W')[con]#Why is this 'RA'???
         else:
             self.rho_weight = np.ones(self.ra.shape)
         self.z = self.z[con]
@@ -95,6 +97,7 @@ class KappaAmara:
         print 'Field area is %2.4f sq. deg'%(tot_area)
 
 
+
         if bin_ra is None:
             bin_ra = self.ra.ptp() * 60.  #ie. 1 arcmin per pixel
         if bin_dec is None:
@@ -128,6 +131,12 @@ class KappaAmara:
         self.raavg = (self.raedges[:-1] + self.raedges[1:]) / 2.
         self.decavg = (self.decedges[:-1] + self.decedges[1:]) / 2.
 
+        if source_pix_z:
+            self.source_N3d, source_edges = np.histogramdd(np.array([self.zs, self.sdec,
+                              self.sra]).T, bins=(bin_z, bin_dec, bin_ra))#grabbing pixelized source distribution (without weighting)
+            self.sraedges = edges[2]
+            self.sdecedges = edges[1]
+                           
         # The total galaxies per redshift slice
         N1d, zedge = np.histogram(self.z, bins=self.zedges, 
                      weights=self.rho_weight) 
