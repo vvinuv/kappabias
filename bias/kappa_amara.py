@@ -27,6 +27,7 @@ class KappaAmara:
         self.zmax_l = zmax_l
         self.zmin_s = zmin_s
         self.zmax_s = zmax_s
+        self.pix_source_z = False
         self.initialize()
         #self.delta_rho_3d(bin_ra, bin_dec, bin_z)
 
@@ -49,9 +50,6 @@ class KappaAmara:
             self.sdec = sd.field['DEC'][scon] #Source DEC Values
             self.zs = self.zs[scon]
             self.pix_source_z = True #boolean for future use
-        else:
-            self.zs = 1.0
-            self.pix_source_z = False
             
         self.z = d.field('z') 
         con = (self.z >= self.zmin_l) & (self.z <= self.zmax_l)
@@ -136,7 +134,7 @@ class KappaAmara:
                               self.sra]).T, bins=(bin_z, bin_dec, bin_ra))#grabbing pixelized source distribution (without weighting)
             self.sraedges = edges[2]
             self.sdecedges = edges[1]
-                           
+                        
         # The total galaxies per redshift slice
         N1d, zedge = np.histogram(self.z, bins=self.zedges, 
                      weights=self.rho_weight) 
