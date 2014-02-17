@@ -132,6 +132,8 @@ class KappaAmara:
         if source_pix_z:
             self.source_N3d, source_edges = np.histogramdd(np.array([self.zs, self.sdec,
                               self.sra]).T, bins=(bin_z, bin_dec, bin_ra))#grabbing pixelized source distribution (without weighting)
+            #NEED TO GET AVERAGE REDSHIFT IN EACH BIN AND PASS TO COMOVING DISTANCE
+            
             self.sraedges = edges[2]
             self.sdecedges = edges[1]
                         
@@ -168,6 +170,7 @@ class KappaAmara:
 
         #self.d_s = comoving_edges[-1] #source distance
         self.d_s = cd.comoving_distance(self.zs, **self.cosmo) #source distance
+        #THIS NEEDS TO BE DONE IN PIXELIZED FORM
         self.delta_d = comoving_edges[1:] - comoving_edges[:-1]
 
         #There is some subtilities in this case. When using MICE, the answer
