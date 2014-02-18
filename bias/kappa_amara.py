@@ -8,9 +8,10 @@ import scipy.ndimage as nd
 import MyFunc as MyF
 from convolution_mask import convolve_mask_fft, Gaussian
 import kappa_utils as ku
-import minuit
+#import minuit
 from astropy.stats import sigma_clip
-
+import sys
+import ka_config as c
 #from mayavi import mlab
 
 
@@ -41,13 +42,14 @@ class KappaAmara:
         f.close()
 
         if self.zs is None: #Initialize arrays needed for pixelized source redshifts  
-            f = pyfits.open(self.sourcefile)
-            sd = f[1].data
-            f.close()
-            self.zs = sd.field['z'] #Source Z values
-            scon = (self.zs >= zmin_s) & (self.zs <= zmax_s)        
-            self.sra = sd.field['RA'][scon] #Source RA Values
-            self.sdec = sd.field['DEC'][scon] #Source DEC Values
+            g = pyfits.open(self.sourcefile)
+            sd = g[1].data
+            g.close()
+            
+            self.zs = sd.field('z') #Source Z values
+            scon = (self.zs >= self.zmin_s) & (self.zs <= self.zmax_s)        
+            self.sra = sd.field('RA')[scon] #Source RA Values
+            self.sdec = sd.field('DEC')[scon] #Source DEC Values
             self.zs = self.zs[scon]
             self.pix_source_z = True #boolean for future use
             
@@ -56,9 +58,12 @@ class KappaAmara:
         self.ra = d.field('RA')[con] 
         self.dec = d.field('DEC')[con]
         self.kappa_true = np.zeros(self.ra.shape)
-        if 'W' in d.values():
+
+        #if 'W' in d.values():
+        try:
             self.rho_weight = d.field('W')[con]#Why is this 'RA'???
-        else:
+        #else:
+        except:
             self.rho_weight = np.ones(self.ra.shape)
         self.z = self.z[con]
         d = 0
@@ -129,14 +134,31 @@ class KappaAmara:
         self.raavg = (self.raedges[:-1] + self.raedges[1:]) / 2.
         self.decavg = (self.decedges[:-1] + self.decedges[1:]) / 2.
 
-        if source_pix_z:
+        if self.pix_source_z:
             self.source_N3d, source_edges = np.histogramdd(np.array([self.zs, self.sdec,
                               self.sra]).T, bins=(bin_z, bin_dec, bin_ra))#grabbing pixelized source distribution (without weighting)
-            #NEED TO GET AVERAGE REDSHIFT IN EACH BIN AND PASS TO COMOVING DISTANCE
-            
+            #NEED TO GET AVERAGE REDSHIFT IN EACH BIN AND PASS TO COMOVING DISTANCE            
             self.sraedges = edges[2]
             self.sdecedges = edges[1]
-                        
+            print self.source_N3d.shape
+            print self.sraedges.size
+            print self.sdecedges.size
+            
+
+            #declare grid based on pixelization
+            self.zs_avg_grid = np.zeros((self.sraedges.size-1)*(self.sdecedges.size-1)).reshape((\
+                (self.sraedges.size-1),(self.sdecedges.size-1)))
+            for i in range(self.sraedges.size - 2):
+                for j in range(self.sdecedges.size - 2):#Loop over pixels
+                    where = (self.sra > self.sraedges[i]) & (self.sra < self.sraedges[i+1]) &\
+                            (self.sdec > self.sdecedges[j]) & (self.sdec < self.sdecedges[j+1])
+                    zsavg = np.mean(self.zs[where])#get sz average in this pixel
+                    self.zs_avg_grid[i,j] = zsavg #putting szavg into grid
+                    print "RA Bin: "+str(self.sraedges[i])+"-"+str(self.sraedges[i+1])+\
+                              "\t DEC Bin: "+str(self.sdecedges[j])+"-"+str(self.sdecedges[j+1])+\
+                              "\t Source Zavg = "+str(zsavg)
+            sys.exit()
+                    
         # The total galaxies per redshift slice
         N1d, zedge = np.histogram(self.z, bins=self.zedges, 
                      weights=self.rho_weight) 
@@ -627,10 +649,12 @@ def linear_bias_kappa(kt, kp):
     return bias, bias_e
 
 if __name__=='__main__':
-   
-    ipath = '.'
-    ifile = 'Aardvark_v1_0_truth_40.fit'
-    opath = '.'
-    k = KappaAmara(ipath, ifile, opath)    
+    
+    ipath = c.ipath
+    sourcefile = 'background.fits'
+    lensfile = 'foreground.fits'
+    opath = c.opath
+    smooth = c.smooth_size
+    k = KappaAmara(ipath, sourcefile,lensfile, opath,smooth)    
     k.delta_rho_3d(50, 50, 10)
     k.kappa_predicted()

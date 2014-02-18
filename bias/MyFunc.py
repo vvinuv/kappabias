@@ -4,7 +4,7 @@ from numpy import log10, average, sin, exp, sqrt, std, where, random, median, ar
 import numpy as np
 import math
 import numpy.ma as ma
-import minuit
+#import minuit
 from astropy.stats import sigma_clip
 
 def linearlsq(x, y):
