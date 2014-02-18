@@ -144,14 +144,15 @@ class KappaAmara:
             self.zs_avg_grid = np.zeros((self.sraedges.size-1)*(self.sdecedges.size-1)).reshape((\
                 (self.sraedges.size-1),(self.sdecedges.size-1)))
             for i in range(self.sraedges.size - 2):
+                print "RA Bin "+str(i)
                 for j in range(self.sdecedges.size - 2):#Loop over pixels
                     where = (self.sra > self.sraedges[i]) & (self.sra < self.sraedges[i+1]) &\
                             (self.sdec > self.sdecedges[j]) & (self.sdec < self.sdecedges[j+1])
                     zsavg = np.mean(self.zs[where])#get sz average in this pixel
                     self.zs_avg_grid[i,j] = zsavg #putting szavg into grid
-                    print "RA Bin: "+str(self.sraedges[i])+"-"+str(self.sraedges[i+1])+\
-                              "\t DEC Bin: "+str(self.sdecedges[j])+"-"+str(self.sdecedges[j+1])+\
-                              "\t Source Zavg = "+str(zsavg)
+                    #print "RA Bin: "+str(self.sraedges[i])+"-"+str(self.sraedges[i+1])+\
+                    #          "\t DEC Bin: "+str(self.sdecedges[j])+"-"+str(self.sdecedges[j+1])+\
+                    #          "\t Source Zavg = "+str(zsavg)
             #sys.exit()
                     
         # The total galaxies per redshift slice
@@ -189,14 +190,13 @@ class KappaAmara:
 
         #Pixelizing d_s
         if self.pix_source_z:
-            self.d_s_pix[i,j] = np.empty_like(self.zs_avg_grid)                    
+            self.d_s_pix = np.empty_like(self.zs_avg_grid)                    
             for i in range(self.sraedges.size - 2):
+                print "Comoving_d "+str(i)
                 for j in range(self.sdecedges.size - 2):#Loop over pixels
-                    where = (self.sra > self.sraedges[i]) & (self.sra < self.sraedges[i+1]) &\
-                            (self.sdec > self.sdecedges[j]) & (self.sdec < self.sdecedges[j+1])
                     self.d_s_pix[i,j] = cd.comoving_distance(self.zs_avg_grid[i,j], **self.cosmo)
-        
-        self.d_s = cd.comoving_distance(self.zs, **self.cosmo) #source distance
+        else:
+            self.d_s = cd.comoving_distance(self.zs, **self.cosmo) #source distance
         self.delta_d = comoving_edges[1:] - comoving_edges[:-1]
 
         #There is some subtilities in this case. When using MICE, the answer
@@ -218,14 +218,19 @@ class KappaAmara:
 
         #Pixelize the integral
         if self.pix_source_z:
-            integral_pix = np.empty_like(self.zs_avg_grid)
+            #integral_pix = np.empty_like(self.zs_avg_grid)
+            integral_pix = []
             for i in range(self.sraedges.size - 2):
+                print "Kappa_predicted "+str(i)
                 for j in range(self.sdecedges.size - 2):
-                    integral_pix[i,j] = ((self.d_c * (self.d_s_pix[i,j] - self.d_c) / self.d_s_pix[i,j]) * \
-                                    (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]
-        
-        integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
-                     (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]
+                    #integral_pix[i,j] = ((self.d_c * (self.d_s_pix[i,j] - self.d_c) / self.d_s_pix[i,j]) * \
+                    #                     (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]
+
+                    integral_pix.append(((self.d_c * (self.d_s_pix[i,j] - self.d_c) / self.d_s_pix[i,j]) * \
+                                         (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis])
+        else:            
+            integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
+                          (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]
 
         # Smooth the 3d density field and find kappa from that
         self.mask_3d = np.ones(self.delta3d.shape) * self.mask
@@ -235,11 +240,13 @@ class KappaAmara:
         self.kappa_pred_3d = 0.0#initialize to zero
         self.kappa_pred = 0.0
         if self.pix_source_z:#Do seperate integral for each pixel and sum
+            counter = -1
             for i in range(self.sraedges.size - 2):
                 for j in range(self.sdecedges.size - 2):
-                    self.kappa_pred_3d += constant * np.sum(integral_pix[i,j] * self.delta3d_sm, \
+                    counter += 1
+                    self.kappa_pred_3d += constant * np.sum(integral_pix[counter] * self.delta3d_sm, \
                                                            axis=0)
-                    self.kappa_pred += constant * np.sum(integral_pix[i,j] * self.delta3d, axis=0)
+                    self.kappa_pred += constant * np.sum(integral_pix[counter] * self.delta3d, axis=0)
         else: #do normal integral without pixelization
             self.kappa_pred_3d = constant * np.sum(integral_1 * self.delta3d_sm, \
                                                    axis=0)
