@@ -143,18 +143,12 @@ class KappaAmara:
             #declare grid based on pixelization
             self.zs_avg_grid = np.zeros((self.sraedges.size-1)*(self.sdecedges.size-1)).reshape((\
                 (self.sraedges.size-1),(self.sdecedges.size-1)))
-            for i in range(self.sraedges.size - 2):
-                print "RA Bin "+str(i)
-                for j in range(self.sdecedges.size - 2):#Loop over pixels
-                    where = (self.sra > self.sraedges[i]) & (self.sra < self.sraedges[i+1]) &\
-                            (self.sdec > self.sdecedges[j]) & (self.sdec < self.sdecedges[j+1])
-                    zsavg = np.mean(self.zs[where])#get sz average in this pixel
-                    self.zs_avg_grid[i,j] = zsavg #putting szavg into grid
-                    #print "RA Bin: "+str(self.sraedges[i])+"-"+str(self.sraedges[i+1])+\
-                    #          "\t DEC Bin: "+str(self.sdecedges[j])+"-"+str(self.sdecedges[j+1])+\
-                    #          "\t Source Zavg = "+str(zsavg)
-            #sys.exit()
-                    
+            
+            self.source_N2d, source_edges = np.histogramdd(np.array([self.sdec,self.sra]).T, bins=(bin_z, bin_dec, bin_ra))
+            self.source_zs2d, source_edges = np.histogramdd(np.array([self.sdec,self.sra]).T, bins=(bin_z, bin_dec, bin_ra),weights=self.zs)
+
+            self.zs_avg_grid = source_zs2d/source_N2d #Weighted Zs 2D histogram over counts 2D histogram
+                                
         # The total galaxies per redshift slice
         N1d, zedge = np.histogram(self.z, bins=self.zedges, 
                      weights=self.rho_weight) 
@@ -188,13 +182,8 @@ class KappaAmara:
 
         #self.d_s = comoving_edges[-1] #source distance
 
-        #Pixelizing d_s
-        if self.pix_source_z:
-            self.d_s_pix = np.empty_like(self.zs_avg_grid)                    
-            for i in range(self.sraedges.size - 2):
-                print "Comoving_d "+str(i)
-                for j in range(self.sdecedges.size - 2):#Loop over pixels
-                    self.d_s_pix[i,j] = cd.comoving_distance(self.zs_avg_grid[i,j], **self.cosmo)
+        if pix_source_z:
+            self.d_s = cd.comoving_distance(self.zs_avg_grid, **self.cosmo)
         else:
             self.d_s = cd.comoving_distance(self.zs, **self.cosmo) #source distance
         self.delta_d = comoving_edges[1:] - comoving_edges[:-1]
@@ -216,43 +205,23 @@ class KappaAmara:
         constant = ((100. * self.cosmo['h'])**2 * self.cosmo['omega_M_0']) * \
                    (3/2.) * (1/c_light**2)         
 
-        #Pixelize the integral
         if self.pix_source_z:
-            #integral_pix = np.empty_like(self.zs_avg_grid)
-            integral_pix = []
-            for i in range(self.sraedges.size - 2):
-                print "Kappa_predicted "+str(i)
-                for j in range(self.sdecedges.size - 2):
-                    #integral_pix[i,j] = ((self.d_c * (self.d_s_pix[i,j] - self.d_c) / self.d_s_pix[i,j]) * \
-                    #                     (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]
-
-                    integral_pix.append(((self.d_c * (self.d_s_pix[i,j] - self.d_c) / self.d_s_pix[i,j]) * \
-                                         (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis])
+            integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
+                          (self.delta_d / self.a))[:,np.newaxis]# NOW 3D b/c self.d_s is 2D
         else:            
             integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
-                          (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]
+                          (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]#NOW 3D
 
         # Smooth the 3d density field and find kappa from that
         self.mask_3d = np.ones(self.delta3d.shape) * self.mask
         xxx, self.delta3d_sm, yyy = convolve_mask_fft(self.delta3d, \
                                         self.mask_3d, self.g_3d, ignore=0.0)
         
-        self.kappa_pred_3d = 0.0#initialize to zero
-        self.kappa_pred = 0.0
-        if self.pix_source_z:#Do seperate integral for each pixel and sum
-            counter = -1
-            for i in range(self.sraedges.size - 2):
-                for j in range(self.sdecedges.size - 2):
-                    counter += 1
-                    self.kappa_pred_3d += constant * np.sum(integral_pix[counter] * self.delta3d_sm, \
-                                                           axis=0)
-                    self.kappa_pred += constant * np.sum(integral_pix[counter] * self.delta3d, axis=0)
-        else: #do normal integral without pixelization
-            self.kappa_pred_3d = constant * np.sum(integral_1 * self.delta3d_sm, \
-                                                   axis=0)
-            # Use unsmoothed density field and generate kappa from that. Later
-            # smooth the 2D kappa field    
-            self.kappa_pred = constant * np.sum(integral_1 * self.delta3d, axis=0)
+        self.kappa_pred_3d = constant * np.sum(integral_1 * self.delta3d_sm, \
+                                               axis=0)
+        # Use unsmoothed density field and generate kappa from that. Later
+        # smooth the 2D kappa field    
+        self.kappa_pred = constant * np.sum(integral_1 * self.delta3d, axis=0)
 
         xxx, self.kappa_pred, yyy = convolve_mask_fft(self.kappa_pred, 
                                                       self.mask, 
@@ -260,7 +229,7 @@ class KappaAmara:
         self.gamma_p = ku.kappa_to_gamma(self.kappa_pred,self.pixel_scale,dt2=None) 
 
         if self.pix_source_z:
-            print integral_pix.shape, self.delta3d.shape, self.kappa_pred.shape
+            print len(integral_pix), self.delta3d.shape, self.kappa_pred.shape
         else:
             print integral_1.shape, self.delta3d.shape, self.kappa_pred.shape
 
