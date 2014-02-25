@@ -130,6 +130,7 @@ class KappaAmara:
         self.raedges = edges[2]
         self.decedges = edges[1]
         self.zedges = edges[0]
+        
         self.zavg = (self.zedges[:-1] + self.zedges[1:]) / 2.
         self.raavg = (self.raedges[:-1] + self.raedges[1:]) / 2.
         self.decavg = (self.decedges[:-1] + self.decedges[1:]) / 2.
@@ -142,12 +143,12 @@ class KappaAmara:
             
             #declare grid based on pixelization
             self.zs_avg_grid = np.zeros((self.sraedges.size-1)*(self.sdecedges.size-1)).reshape((\
-                (self.sraedges.size-1),(self.sdecedges.size-1)))
+                (self.sdecedges.size-1),(self.sraedges.size-1)))
             
-            self.source_N2d, source_edges = np.histogramdd(np.array([self.sdec,self.sra]).T, bins=(bin_z, bin_dec, bin_ra))
-            self.source_zs2d, source_edges = np.histogramdd(np.array([self.sdec,self.sra]).T, bins=(bin_z, bin_dec, bin_ra),weights=self.zs)
+            self.source_N2d, source_edges = np.histogramdd(np.array([self.sdec,self.sra]).T, bins=(bin_dec, bin_ra))
+            self.source_zs2d, source_edges = np.histogramdd(np.array([self.sdec,self.sra]).T, bins=(bin_dec, bin_ra),weights=self.zs)
 
-            self.zs_avg_grid = source_zs2d/source_N2d #Weighted Zs 2D histogram over counts 2D histogram
+            self.zs_avg_grid = self.source_zs2d/self.source_N2d #Weighted Zs 2D histogram over counts 2D histogram
                                 
         # The total galaxies per redshift slice
         N1d, zedge = np.histogram(self.z, bins=self.zedges, 
@@ -182,20 +183,23 @@ class KappaAmara:
 
         #self.d_s = comoving_edges[-1] #source distance
 
-        if pix_source_z:
+        if self.pix_source_z:
             self.d_s = cd.comoving_distance(self.zs_avg_grid, **self.cosmo)
         else:
             self.d_s = cd.comoving_distance(self.zs, **self.cosmo) #source distance
         self.delta_d = comoving_edges[1:] - comoving_edges[:-1]
+        #self.delta_d = comoving_edges[1] - comoving_edges[-1]
 
         #There is some subtilities in this case. When using MICE, the answer
         #makes sense when commenting the following lines. When using BCC
         #it requires the following lines
-        #comoving_edges /= (1. + self.zedges)
-        #self.d_c /= (1. + self.zavg)
-        #self.d_s /= (1. + self.zs)
-       
-        self.a = 1 / (1 + self.zavg)#I believe this is for lensed galaxies(so doesnt need to be pixelized) Dillon
+        comoving_edges /= (1. + self.zedges)
+        self.d_c /= (1. + self.zavg)
+        if self.pix_source_z:
+            self.d_s /= (1. + self.zs_avg_grid)
+        else:
+            self.d_s /= (1. + self.zs)
+        self.a = 1 / (1 + self.zavg)
 
     def kappa_predicted(self):
         self.comoving_d()
@@ -206,8 +210,21 @@ class KappaAmara:
                    (3/2.) * (1/c_light**2)         
 
         if self.pix_source_z:
-            integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
-                          (self.delta_d / self.a))[:,np.newaxis]# NOW 3D b/c self.d_s is 2D
+            integral_1 = np.arange(len(self.zavg)*len(self.raavg)*len(self.decavg)\
+                                   ).reshape((len(self.zavg),len(self.decavg),len(self.raavg)))
+            #print "shape"
+            #print np.asarray(integral_1).shape
+            counter = -1
+            for i in self.zavg:
+                integral_1[counter,:,:] = ((self.d_c[counter] \
+                                            *(self.d_s - self.d_c[counter]) / self.d_s) * \
+                                           (self.delta_d[counter] / self.a[counter]))
+
+            #integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
+            #              (self.delta_d / self.a))
+            
+            #integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
+            #              (self.delta_d / self.a))# NOW 3D b/c self.d_s is 2D
         else:            
             integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
                           (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]#NOW 3D
@@ -228,10 +245,10 @@ class KappaAmara:
                                                       self.g_2d, ignore=0.0) 
         self.gamma_p = ku.kappa_to_gamma(self.kappa_pred,self.pixel_scale,dt2=None) 
 
-        if self.pix_source_z:
-            print len(integral_pix), self.delta3d.shape, self.kappa_pred.shape
-        else:
-            print integral_1.shape, self.delta3d.shape, self.kappa_pred.shape
+        #if self.pix_source_z:
+        #    print len(integral_pix), self.delta3d.shape, self.kappa_pred.shape
+        #else:
+        print integral_1.shape, self.delta3d.shape, self.kappa_pred.shape
 
         np.savez('kappa_predicted.npz', kappa=self.kappa_pred)
 
