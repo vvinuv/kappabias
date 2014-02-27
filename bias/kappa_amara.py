@@ -18,12 +18,13 @@ import ka_config as c
 class KappaAmara:
 
     def __init__(self, ipath, sourcefile, lensfile, opath, smooth, 
-                 zs=None, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1,
+                 zs=None,pd_s=None, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1,
                  rho_weight=None):
         self.sourcefile = os.path.join(ipath, sourcefile)
         self.lensfile = os.path.join(ipath, lensfile)
         self.smooth = smooth
         self.zs = zs
+        self.pd_s = pd_s
         self.zmin_l = zmin_l
         self.zmax_l = zmax_l
         self.zmin_s = zmin_s
@@ -41,8 +42,11 @@ class KappaAmara:
         d = f[1].data
         f.close()
 
-        if self.zs is None: #Initialize arrays needed for pixelized source redshifts  
-            g = pyfits.open(self.sourcefile)
+        
+        if self.zs is None:
+            print "Please enter a source redshift average or distribution... \nExiting Now"
+            sys.exit()
+            '''g = pyfits.open(self.sourcefile)
             sd = g[1].data
             g.close()
             
@@ -52,7 +56,8 @@ class KappaAmara:
             self.sdec = sd.field('DEC')[scon] #Source DEC Values
             self.zs = self.zs[scon]
             self.pix_source_z = True #boolean for future use
-            
+            '''
+
         self.z = d.field('z') 
         con = (self.z >= self.zmin_l) & (self.z <= self.zmax_l)
         self.ra = d.field('RA')[con] 
@@ -126,7 +131,7 @@ class KappaAmara:
         self.N3d, edges = np.histogramdd(np.array([self.z, self.dec, 
                           self.ra]).T, bins=(bin_z, bin_dec, bin_ra),
                           weights=self.rho_weight)
-
+        
         self.raedges = edges[2]
         self.decedges = edges[1]
         self.zedges = edges[0]
@@ -134,22 +139,8 @@ class KappaAmara:
         self.zavg = (self.zedges[:-1] + self.zedges[1:]) / 2.
         self.raavg = (self.raedges[:-1] + self.raedges[1:]) / 2.
         self.decavg = (self.decedges[:-1] + self.decedges[1:]) / 2.
-
-        if self.pix_source_z:
-            self.source_N3d, source_edges = np.histogramdd(np.array([self.zs, self.sdec,
-                              self.sra]).T, bins=(bin_z, bin_dec, bin_ra))#grabbing pixelized source distribution(no weighting)
-            self.sraedges = edges[2]
-            self.sdecedges = edges[1]
-            
-            #declare grid based on pixelization
-            self.zs_avg_grid = np.zeros((self.sraedges.size-1)*(self.sdecedges.size-1)).reshape((\
-                (self.sdecedges.size-1),(self.sraedges.size-1)))
-            
-            self.source_N2d, source_edges = np.histogramdd(np.array([self.sdec,self.sra]).T, bins=(bin_dec, bin_ra))
-            self.source_zs2d, source_edges = np.histogramdd(np.array([self.sdec,self.sra]).T, bins=(bin_dec, bin_ra),weights=self.zs)
-
-            self.zs_avg_grid = self.source_zs2d/self.source_N2d #Weighted Zs 2D histogram over counts 2D histogram
-                                
+        
+        
         # The total galaxies per redshift slice
         N1d, zedge = np.histogram(self.z, bins=self.zedges, 
                      weights=self.rho_weight) 
@@ -183,10 +174,8 @@ class KappaAmara:
 
         #self.d_s = comoving_edges[-1] #source distance
 
-        if self.pix_source_z:
-            self.d_s = cd.comoving_distance(self.zs_avg_grid, **self.cosmo)
-        else:
-            self.d_s = cd.comoving_distance(self.zs, **self.cosmo) #source distance
+        self.d_s = cd.comoving_distance(self.zs, **self.cosmo) #source distance
+            
         self.delta_d = comoving_edges[1:] - comoving_edges[:-1]
         #self.delta_d = comoving_edges[1] - comoving_edges[-1]
 
@@ -195,10 +184,7 @@ class KappaAmara:
         #it requires the following lines
         comoving_edges /= (1. + self.zedges)
         self.d_c /= (1. + self.zavg)
-        if self.pix_source_z:
-            self.d_s /= (1. + self.zs_avg_grid)
-        else:
-            self.d_s /= (1. + self.zs)
+        self.d_s /= (1. + self.zs)#Need to double check this line is correct
         self.a = 1 / (1 + self.zavg)
 
     def kappa_predicted(self):
@@ -209,22 +195,23 @@ class KappaAmara:
         constant = ((100. * self.cosmo['h'])**2 * self.cosmo['omega_M_0']) * \
                    (3/2.) * (1/c_light**2)         
 
-        if self.pix_source_z:
-            integral_1 = np.arange(len(self.zavg)*len(self.raavg)*len(self.decavg)\
-                                   ).reshape((len(self.zavg),len(self.decavg),len(self.raavg)))
-            #print "shape"
-            #print np.asarray(integral_1).shape
-            counter = -1
-            for i in self.zavg:
-                integral_1[counter,:,:] = ((self.d_c[counter] \
-                                            *(self.d_s - self.d_c[counter]) / self.d_s) * \
-                                           (self.delta_d[counter] / self.a[counter]))
+        if type(self.zs) is np.ndarray:#This only works if zs is already binned!
+            if self.pd_s is None:
+                self.pd_s = np.arange(len(self.d_c)*len(self.zs)).reshape((len(self.d_c),len(self.zs)))* 0.0 + 1.0 #DEFAULT Flat Distribution
 
-            #integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
-            #              (self.delta_d / self.a))
-            
-            #integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
-            #              (self.delta_d / self.a))# NOW 3D b/c self.d_s is 2D
+            self.pd_s /= np.linalg.norm(self.pd_s)#normalize probabilities to be used in integral
+
+            self.pd_s = np.transpose(self.pd_s)
+            twod_d_s = np.transpose(np.resize(self.d_s,(len(self.d_c),len(self.d_s))))
+            twod_d_c = np.resize(self.d_c,(len(self.d_s),len(self.d_c)))
+
+            integral_2 = (self.pd_s*(twod_d_s - twod_d_c) / twod_d_s)
+            integral_2_summed = np.resize([integral_2[x,:].sum() for x in range(len(self.d_s))],len(self.d_c))#do integral
+
+            print integral_2_summed.shape
+            print self.d_c.shape
+            integral_1 = ((self.d_c * integral_2_summed) * \
+                          (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]
         else:            
             integral_1 = ((self.d_c * (self.d_s - self.d_c) / self.d_s) * \
                           (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]#NOW 3D
@@ -674,6 +661,8 @@ if __name__=='__main__':
     lensfile = 'foreground.fits'
     opath = c.opath
     smooth = c.smooth_size
-    k = KappaAmara(ipath, sourcefile,lensfile, opath,smooth)    
+    zs = [.5,.6,.7,.8,.9,1.0,1.1,1.2,1.3]
+    zs = np.resize(zs,(len(zs)))
+    k = KappaAmara(ipath, sourcefile,lensfile, opath,smooth,zs)    
     k.delta_rho_3d(50, 50, 10)
     k.kappa_predicted()
