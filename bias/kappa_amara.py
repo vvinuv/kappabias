@@ -46,17 +46,6 @@ class KappaAmara:
         if self.zs is None:
             print "Please enter a source redshift average or distribution... \nExiting Now"
             sys.exit()
-            '''g = pyfits.open(self.sourcefile)
-            sd = g[1].data
-            g.close()
-            
-            self.zs = sd.field('z') #Source Z values
-            scon = (self.zs >= self.zmin_s) & (self.zs <= self.zmax_s)        
-            self.sra = sd.field('RA')[scon] #Source RA Values
-            self.sdec = sd.field('DEC')[scon] #Source DEC Values
-            self.zs = self.zs[scon]
-            self.pix_source_z = True #boolean for future use
-            '''
 
         self.z = d.field('z') 
         con = (self.z >= self.zmin_l) & (self.z <= self.zmax_l)
