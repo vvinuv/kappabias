@@ -18,18 +18,17 @@ import ka_config as c
 class KappaAmara:
 
     def __init__(self, ipath, sourcefile, lensfile, opath, smooth, 
-                 zs=None,pd_s=None, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1,
+                 zs=0.8,pdf_zs=None, zmin_s=0.4, zmax_s=1.1, zmin_l=0.1, zmax_l=1.1,
                  rho_weight=None):
         self.sourcefile = os.path.join(ipath, sourcefile)
         self.lensfile = os.path.join(ipath, lensfile)
         self.smooth = smooth
         self.zs = zs
-        self.pd_s = pd_s
+        self.pdf_zs = pdf_zs
         self.zmin_l = zmin_l
         self.zmax_l = zmax_l
         self.zmin_s = zmin_s
         self.zmax_s = zmax_s
-        self.pix_source_z = False
         self.initialize()
         #self.delta_rho_3d(bin_ra, bin_dec, bin_z)
 
@@ -43,10 +42,6 @@ class KappaAmara:
         f.close()
 
         
-        if self.zs is None:
-            print "Please enter a source redshift average or distribution... \nExiting Now"
-            sys.exit()
-
         self.z = d.field('z') 
         con = (self.z >= self.zmin_l) & (self.z <= self.zmax_l)
         self.ra = d.field('RA')[con] 
@@ -171,9 +166,9 @@ class KappaAmara:
         #There is some subtilities in this case. When using MICE, the answer
         #makes sense when commenting the following lines. When using BCC
         #it requires the following lines
-        comoving_edges /= (1. + self.zedges)
-        self.d_c /= (1. + self.zavg)
-        self.d_s /= (1. + self.zs)#Need to double check this line is correct
+        #comoving_edges /= (1. + self.zedges)
+        #self.d_c /= (1. + self.zavg)
+        #self.d_s /= (1. + self.zs)#Need to double check this line is correct
         self.a = 1 / (1 + self.zavg)
 
     def kappa_predicted(self):
@@ -185,16 +180,16 @@ class KappaAmara:
                    (3/2.) * (1/c_light**2)         
 
         if type(self.zs) is np.ndarray:#This only works if zs is already binned!
-            if self.pd_s is None:
-                self.pd_s = np.arange(len(self.d_c)*len(self.zs)).reshape((len(self.d_c),len(self.zs)))* 0.0 + 1.0 #DEFAULT Flat Distribution
+            if self.pdf_zs is None:
+                self.pdf_zs = np.arange(len(self.d_c)*len(self.zs)).reshape((len(self.d_c),len(self.zs)))* 0.0 + 1.0 #DEFAULT Flat Distribution
 
-            self.pd_s /= np.linalg.norm(self.pd_s)#normalize probabilities to be used in integral
+            self.pdf_zs /= np.linalg.norm(self.pdf_zs)#normalize probabilities to be used in integral
 
-            self.pd_s = np.transpose(self.pd_s)
+            self.pdf = np.transpose(self.pdf_zs)
             twod_d_s = np.transpose(np.resize(self.d_s,(len(self.d_c),len(self.d_s))))
             twod_d_c = np.resize(self.d_c,(len(self.d_s),len(self.d_c)))
 
-            integral_2 = (self.pd_s*(twod_d_s - twod_d_c) / twod_d_s)
+            integral_1 = (self.pdf_zs*(twod_d_s - twod_d_c) / twod_d_s)
             integral_2_summed = np.resize([integral_2[x,:].sum() for x in range(len(self.d_s))],len(self.d_c))#do integral
 
             print integral_2_summed.shape
@@ -650,8 +645,10 @@ if __name__=='__main__':
     lensfile = 'foreground.fits'
     opath = c.opath
     smooth = c.smooth_size
+
     zs = [.5,.6,.7,.8,.9,1.0,1.1,1.2,1.3]
     zs = np.resize(zs,(len(zs)))
-    k = KappaAmara(ipath, sourcefile,lensfile, opath,smooth,zs)    
+
+    k = KappaAmara(ipath, sourcefile,lensfile, opath,smooth)    
     k.delta_rho_3d(50, 50, 10)
     k.kappa_predicted()
