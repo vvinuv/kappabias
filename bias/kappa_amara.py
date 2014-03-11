@@ -181,19 +181,32 @@ class KappaAmara:
 
         if type(self.zs) is np.ndarray:#This only works if zs is already binned!
             if self.pdf_zs is None:
-                self.pdf_zs = np.arange(len(self.d_c)*len(self.zs)).reshape((len(self.d_c),len(self.zs)))* 0.0 + 1.0 #DEFAULT Flat Distribution
+                self.pdf_zs = np.arange(len(self.d_c)*len(self.d_s)).reshape((len(self.d_c),len(self.d_s)))* 0.0 + 1.0 #DEFAULT Flat Distribution
+            else:
+                self.pdf_zs = np.resize(self.pdf_zs,(len(self.d_c),len(self.d_s)))
 
-            self.pdf_zs /= np.linalg.norm(self.pdf_zs)#normalize probabilities to be used in integral
+            print self.pdf_zs
+            self.pdf_zs /= np.linalg.norm(self.pdf_zs[0,:],ord=1)#normalize probabilities to be used in integral
+            print self.pdf_zs
+            print self.pdf_zs.shape
+            self.pdf_zs = np.transpose(self.pdf_zs)
+            print self.pdf_zs.shape
 
-            self.pdf = np.transpose(self.pdf_zs)
+            print self.d_s
+            print self.d_s.shape
+            
+            
             twod_d_s = np.transpose(np.resize(self.d_s,(len(self.d_c),len(self.d_s))))
+            print twod_d_s
+            print twod_d_s.shape
             twod_d_c = np.resize(self.d_c,(len(self.d_s),len(self.d_c)))
 
-            integral_1 = (self.pdf_zs*(twod_d_s - twod_d_c) / twod_d_s)
-            integral_2_summed = np.resize([integral_2[x,:].sum() for x in range(len(self.d_s))],len(self.d_c))#do integral
-
-            print integral_2_summed.shape
-            print self.d_c.shape
+            integral_2 = (self.pdf_zs*(twod_d_s - twod_d_c) / twod_d_s)
+            print integral_2.shape
+            print self.d_s.shape
+            #integral_2_summed = np.resize([integral_2[x,:].sum() for x in range(len(self.d_s))],len(self.d_c))#do integral
+            integral_2_summed = [integral_2[:,x].sum() for x in range(len(self.d_c))]
+            
             integral_1 = ((self.d_c * integral_2_summed) * \
                           (self.delta_d / self.a))[:,np.newaxis][:,np.newaxis]
         else:            
@@ -647,8 +660,10 @@ if __name__=='__main__':
     smooth = c.smooth_size
 
     zs = [.5,.6,.7,.8,.9,1.0,1.1,1.2,1.3]
+    pzs = [0,0,0,1,0,0,0,0,0]
     zs = np.resize(zs,(len(zs)))
+    pzs = np.resize(pzs,(len(pzs)))
 
-    k = KappaAmara(ipath, sourcefile,lensfile, opath,smooth)    
+    k = KappaAmara(ipath, sourcefile,lensfile, opath,smooth,zs,pzs)    
     k.delta_rho_3d(50, 50, 10)
     k.kappa_predicted()
