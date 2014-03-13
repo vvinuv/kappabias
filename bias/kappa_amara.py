@@ -185,25 +185,13 @@ class KappaAmara:
             else:
                 self.pdf_zs = np.resize(self.pdf_zs,(len(self.d_c),len(self.d_s)))
 
-            print self.pdf_zs
             self.pdf_zs /= np.linalg.norm(self.pdf_zs[0,:],ord=1)#normalize probabilities to be used in integral
-            print self.pdf_zs
-            print self.pdf_zs.shape
             self.pdf_zs = np.transpose(self.pdf_zs)
-            print self.pdf_zs.shape
-
-            print self.d_s
-            print self.d_s.shape
-            
             
             twod_d_s = np.transpose(np.resize(self.d_s,(len(self.d_c),len(self.d_s))))
-            print twod_d_s
-            print twod_d_s.shape
             twod_d_c = np.resize(self.d_c,(len(self.d_s),len(self.d_c)))
 
             integral_2 = (self.pdf_zs*(twod_d_s - twod_d_c) / twod_d_s)
-            print integral_2.shape
-            print self.d_s.shape
             #integral_2_summed = np.resize([integral_2[x,:].sum() for x in range(len(self.d_s))],len(self.d_c))#do integral
             integral_2_summed = [integral_2[:,x].sum() for x in range(len(self.d_c))]
             
